@@ -1,0 +1,42 @@
+{
+  "checks": [
+    "Inner logo stays pixel-identical in all five busy frames",
+    "Outside-hero triangle has no SVG trails in busy frames",
+    "Sidebar brand region is unchanged during animation",
+    "The outer annulus animates across busy frames",
+    "No SVG trails remain after the animation settles",
+    "Navigating to Restore leaves the outside-hero region intact"
+  ],
+  "metrics": {
+    "inner_differences": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "outside_hero_differences": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "brand_differences": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "busy_annulus_differences": [
+      123.795,
+      141.596,
+      148.174,
+      137.08
+    ]
+  },
+  "environment": "cachy-vm only, isolated Xvfb :99, tiny-skia",
+  "read_only_fixture": true,
+  "actual_backup_started": false
+}

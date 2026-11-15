@@ -1,0 +1,68 @@
+{
+  "point": "20261114T075907160810303Z",
+  "checks": [
+    "Restored /etc/snap-back-test-marker",
+    "Restored /home/aneesh/snap-back-test-marker",
+    "Restored /srv/snap-back-test-marker",
+    "Restored /var/lib/machines/snap-back-test-marker",
+    "Removed post-checkpoint file /etc/snap-back-post-checkpoint",
+    "Removed post-checkpoint file /home/aneesh/snap-back-post-checkpoint",
+    "VM rebooted",
+    "Recovery journal committed",
+    "Recovery is disarmed",
+    "Booted kernel has matching modules",
+    "Home marker owner preserved",
+    "Root Snapper history preserved",
+    "Home Snapper history preserved",
+    "Previous root retained",
+    "Previous home retained",
+    "Previous auxiliary data retained"
+  ],
+  "journal": {
+    "version": 1,
+    "point_id": "20261114T075907160810303Z",
+    "source_uuid": "1967a6a9-c92b-4d71-a361-94dd80a7856e",
+    "boot_uuid": "B30A-191D",
+    "sources": [
+      {
+        "name": "root",
+        "subvol": "@"
+      },
+      {
+        "name": "home",
+        "subvol": "@home"
+      },
+      {
+        "name": "root-user",
+        "subvol": "@root"
+      },
+      {
+        "name": "srv",
+        "subvol": "@srv"
+      },
+      {
+        "name": "cache",
+        "subvol": "@cache"
+      },
+      {
+        "name": "tmp",
+        "subvol": "@tmp"
+      },
+      {
+        "name": "log",
+        "subvol": "@log"
+      },
+      {
+        "name": "machines",
+        "subvol": "@/var/lib/machines"
+      },
+      {
+        "name": "portables",
+        "subvol": "@/var/lib/portables"
+      }
+    ],
+    "staging": ".snap-back-restore-20261114T075907160810303Z",
+    "phase": "completed",
+    "error": null
+  }
+}

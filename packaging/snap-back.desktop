@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Snap Back
+Comment=Back up and restore your system and home directories
+Exec=/usr/local/bin/snap-back-gui
+Icon=drive-harddisk
+Terminal=false
+Categories=System;Utility;Archiving;
+StartupNotify=true

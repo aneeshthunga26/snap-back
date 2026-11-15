@@ -1,0 +1,14 @@
+{
+  "environment": "cachy-vm only, private KWin native Wayland",
+  "renderer": "Default Iced renderer; ICED_BACKEND unset",
+  "read_only_fixture": "Private mount namespace overrides busy/progress only; mutation commands refused",
+  "checks": [
+    "Dropdown shows both remembered destinations",
+    "First drive label toggles without dismissing menu",
+    "Second drive label clears final checkbox",
+    "Zero selected disables backup while keeping selector enabled",
+    "Normal renderer updates captured after 200 ms"
+  ],
+  "app_source_modified": false,
+  "private_gui_stopped": true
+}

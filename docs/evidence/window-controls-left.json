@@ -1,0 +1,6 @@
+{
+  "fixture": "Temporary XDG_CONFIG_HOME; KDE ButtonsOnLeft=XIA, ButtonsOnRight explicitly empty",
+  "resolved_theme": "Caption theme: breeze-dark (Breeze), layout Layout { left: [Close, Minimize, Maximize], right: [] }, icons [Some(\"/usr/share/icons/breeze-dark/actions/16/window-minimize-symbolic.svg\"), Some(\"/usr/share/icons/breeze-dark/actions/16/window-maximize-symbolic.svg\"), Some(\"/usr/share/icons/breeze-dark/actions/16/window-restore-symbolic.svg\"), Some(\"/usr/share/icons/breeze-dark/actions/16/window-close-symbolic.svg\")]",
+  "leading_close_button_passed": true,
+  "user_settings_modified": false
+}

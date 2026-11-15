@@ -1,0 +1,15 @@
+[Unit]
+Description=Snap Back offline system recovery
+DefaultDependencies=no
+ConditionKernelCommandLine=snap_back.recovery=1
+After=systemd-udevd.service systemd-udev-trigger.service
+Before=sysroot.mount initrd-root-fs.target
+OnFailure=emergency.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snap-back recover-offline --plan /etc/snap-back-recovery.json
+RemainAfterExit=yes
+TimeoutStartSec=infinity
+StandardOutput=journal+console
+StandardError=journal+console

@@ -1,0 +1,17 @@
+{
+  "checks": [
+    "maximize caption button",
+    "restore caption button",
+    "minimize caption button",
+    "restore from compositor",
+    "caption double-click maximizes",
+    "caption double-click restores",
+    "caption drag moves window",
+    "corner resize changes geometry",
+    "close caption button"
+  ],
+  "closed": true,
+  "compositor": "KWin 6.8.2 virtual backend, OpenGL O2",
+  "renderer": "Iced tiny-skia",
+  "environment": "cachy-vm only"
+}

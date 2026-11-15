@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# mkinitcpio install hook. Rust performs recovery; this only assembles its initrd.
+build() {
+    add_module btrfs
+    add_module vfat
+    add_module nls_cp437
+    add_module nls_iso8859_1
+    add_module virtio_blk
+    add_module virtio_pci
+    add_binary /usr/local/bin/snap-back /usr/bin/snap-back
+    map add_binary btrfs mount umount rsync systemctl
+    add_file /boot/snap-back/pending.json /etc/snap-back-recovery.json
+    add_file /usr/lib/systemd/system/snap-back-recovery.service
+    add_symlink /usr/lib/systemd/system/initrd.target.wants/snap-back-recovery.service /usr/lib/systemd/system/snap-back-recovery.service
+    # Prevent root from being mounted while volumes are being switched.
+    add_file /usr/lib/snap-back/sysroot.mount.d/recovery.conf /usr/lib/systemd/system/sysroot.mount.d/snap-back-recovery.conf
+}
+help() {
+    echo 'Run a staged Snap Back recovery before mounting the system root.'
+}

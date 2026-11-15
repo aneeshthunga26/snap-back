@@ -1,0 +1,17 @@
+[package]
+name = "snap-back-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The backup and recovery helper for Snap Back"
+
+[[bin]]
+name = "snap-back"
+path = "src/main.rs"
+
+[dependencies]
+snap-back-core = { path = "../snap-back-core" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"

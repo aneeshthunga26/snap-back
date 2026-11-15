@@ -1,0 +1,39 @@
+{
+  "checks": [
+    "Unknown targets are refused before backups or configuration change",
+    "Unprivileged status exposes all saved backup drives",
+    "Both destinations can be saved for automatic backups",
+    "Browsing Snap Back preserves backup selection",
+    "Browsing Snap Back (vdc) preserves backup selection",
+    "Combined backup holds one global operation lock",
+    "Snap Back: all nine subvolumes and boot files completed",
+    "Snap Back: root and home marker contents verified",
+    "Snap Back (vdc): all nine subvolumes and boot files completed",
+    "Snap Back (vdc): root and home marker contents verified",
+    "Snap Back: scheduled backup uses an independent incremental parent",
+    "Snap Back: retention coalesces its own hourly bucket",
+    "Snap Back: completed point is browsable",
+    "Snap Back: file recovery returns the latest content and user ownership",
+    "Snap Back (vdc): scheduled backup uses an independent incremental parent",
+    "Snap Back (vdc): retention coalesces its own hourly bucket",
+    "Snap Back (vdc): completed point is browsable",
+    "Snap Back (vdc): file recovery returns the latest content and user ownership",
+    "A missing destination is reported while a healthy destination completes",
+    "A one-run selection leaves unselected drives untouched",
+    "No backup is written into an unmounted destination directory",
+    "Final backup clears the error and preserves both targets and the restore drive"
+  ],
+  "targets": [
+    "75bb8ff4-3152-4a99-b038-9ee8bf0243b1",
+    "469248ae-e83c-4ecc-bfdc-cbd384ea6eff"
+  ],
+  "restore_drive": "469248ae-e83c-4ecc-bfdc-cbd384ea6eff",
+  "first_points": {
+    "75bb8ff4-3152-4a99-b038-9ee8bf0243b1": "20261115T014131658454755Z",
+    "469248ae-e83c-4ecc-bfdc-cbd384ea6eff": "20261115T014308460594891Z"
+  },
+  "second_points": {
+    "75bb8ff4-3152-4a99-b038-9ee8bf0243b1": "20261115T014321237716091Z",
+    "469248ae-e83c-4ecc-bfdc-cbd384ea6eff": "20261115T014326313471274Z"
+  }
+}

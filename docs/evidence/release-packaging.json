@@ -1,0 +1,22 @@
+{
+  "environment": "cachy-vm only",
+  "version": "0.1.0",
+  "compiler": "rustc 1.99.1",
+  "build_libc": "glibc 2.44",
+  "qa_inputs": "Unversioned development checkout; published assets are built again by CI from the clean release tag.",
+  "checks": [
+    "Bash syntax checks passed for release and tarball installer scripts",
+    "Requested version mismatching Cargo metadata was refused",
+    "Locked optimized workspace build passed",
+    "Binary and corresponding-source archive checksums verified",
+    "Both archives extracted successfully",
+    "Extracted release CLI reported version 0.1.0",
+    "Extracted GUI binary had no missing dynamic libraries in the VM",
+    "DESTDIR installation staged executables, systemd units, PolicyKit action, launcher, recovery files, GPL license, and third-party notices",
+    "Staged binary modes were 0755 and systemd unit modes were 0644",
+    "Staged installation created no backup configuration",
+    "Live backup configuration and fstab stayed byte-identical",
+    "Source archive checked offline with an empty Cargo home using its vendored dependencies",
+    "Repeat packaging produced identical binary and source archive checksums"
+  ]
+}

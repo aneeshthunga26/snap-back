@@ -1,0 +1,15 @@
+[
+  "System drive blocked",
+  "Current backup disk blocked",
+  "Disposable whole drive eligible",
+  "System, current, partition, file, and arbitrary paths refused",
+  "Old filesystem marker present",
+  "Mounted child partition blocks whole-disk erasure",
+  "Plan shows exact physical identity and device phrase",
+  "Wrong-device confirmation refused",
+  "Invalid plan token refused",
+  "Expired plan refused",
+  "Backup/restore operation lock respected",
+  "Pending recovery blocks drive setup",
+  "All refusal cases left existing data intact"
+]

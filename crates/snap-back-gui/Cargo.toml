@@ -1,0 +1,17 @@
+[package]
+name = "snap-back-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A desktop backup and recovery tool for CachyOS and Btrfs"
+
+[dependencies]
+iced = { version = "0.14", features = ["tokio", "svg"] }
+iced-shadcn = "0.5"
+iced_anim = { version = "0.3.1", features = ["widgets"] }
+freedesktop-icons = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+tokio = { version = "1", features = ["process", "time"] }

@@ -1,0 +1,22 @@
+{
+  "point": "20261114T075907160810303Z",
+  "checks": [
+    "Full backup creates all configured subvolumes",
+    "root marker stored on backup disk",
+    "home marker stored on backup disk",
+    "srv marker stored on backup disk",
+    "machines marker stored on backup disk",
+    "File browser lists backed-up home",
+    "File recovery preserves content",
+    "Recovered data belongs to invoking user",
+    "Existing recovery destination refused",
+    "Path traversal refused",
+    "Second backup uses incremental Btrfs send",
+    "Hourly retention coalesces same-hour points",
+    "Incremental content exists on backup disk",
+    "Schedule can be enabled",
+    "Schedule can be paused",
+    "Offline restore refuses live system",
+    "Unconfigured nested subvolume refused"
+  ]
+}

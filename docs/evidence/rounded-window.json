@@ -1,0 +1,41 @@
+{
+  "environment": "cachy-vm only, isolated KWin O2",
+  "implementation": "Native antialiased Iced rounded background and sidebar, 8 px scrollbar bottom inset; single draw per widget",
+  "radius_logical_px": 8,
+  "renderers_verified": [
+    "tiny-skia X11",
+    "wgpu native Wayland"
+  ],
+  "restored_corner_alpha": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "maximized_corner_alpha": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "navigation_style": "Bounded 150 ms iced_anim easing verified after delayed software frames",
+  "performance": {
+    "wgpu_idle": {
+      "cpu_percent_one_core": 0.0,
+      "pid": 11176,
+      "rss_mib": 125.6
+    },
+    "wgpu_busy": {
+      "cpu_percent_one_core": 14.8,
+      "pid": 11392,
+      "rss_mib": 126.4
+    },
+    "tiny_skia_busy": {
+      "cpu_percent_one_core": 100.2,
+      "pid": 11136,
+      "rss_mib": 46.3
+    }
+  },
+  "busy_fixture": "Read-only status reports busy in a private mount namespace; no backup operation started",
+  "application_source_changed_during_checks": false
+}

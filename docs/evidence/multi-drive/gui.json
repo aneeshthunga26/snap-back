@@ -1,0 +1,24 @@
+{
+  "checks": [
+    "Dropdown shows both remembered checkbox destinations",
+    "Clicking a drive label toggles it without closing the dropdown",
+    "All checkboxes can be cleared without resetting the draft",
+    "Clicking outside closes the dropdown",
+    "Backup is disabled when no drives are selected",
+    "Clicking the checkbox toggles once and keeps the dropdown open",
+    "Both drives can be reselected",
+    "Escape dismisses the dropdown",
+    "One GUI backup click completes on both selected disks",
+    "The GUI selection is remembered for hourly backups",
+    "Home, Root, and Up share one toolbar row"
+  ],
+  "before": {
+    "75bb8ff4-3152-4a99-b038-9ee8bf0243b1": "20261115T032903565527110Z",
+    "469248ae-e83c-4ecc-bfdc-cbd384ea6eff": "20261115T032908992927315Z"
+  },
+  "after": {
+    "75bb8ff4-3152-4a99-b038-9ee8bf0243b1": "20261115T033937474512012Z",
+    "469248ae-e83c-4ecc-bfdc-cbd384ea6eff": "20261115T033945885615151Z"
+  },
+  "environment": "cachy-vm only, isolated Xvfb/X11"
+}

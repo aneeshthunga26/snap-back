@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "maximize caption button",
+    "restore caption button",
+    "minimize caption button",
+    "restore from compositor",
+    "caption double-click maximizes",
+    "caption double-click restores",
+    "caption drag moves window",
+    "corner resize changes geometry",
+    "close caption button"
+  ],
+  "closed": true,
+  "compositor": "KWin 6.8.2 virtual backend, OpenGL O2",
+  "renderer": "Iced tiny-skia",
+  "environment": "cachy-vm only",
+  "client_side_decoration_protocol": [
+    "[22:34:37.170511]  -> zxdg_toplevel_decoration_v1#25.set_mode(1)",
+    "[22:34:37.171550] zxdg_toplevel_decoration_v1#25.configure(1)"
+  ]
+}

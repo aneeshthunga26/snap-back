@@ -1,0 +1,1 @@
+Backed up to Snap Back (vdc). Could not back up to Missing QA drive: Saved backup drive is disconnected, ambiguous, or no longer Btrfs

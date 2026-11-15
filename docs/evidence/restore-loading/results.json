@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "Previous listing pixels retained during delayed restore-point read",
+    "New read completes without a blank-list intermediate state",
+    "Rapid point switches remain responsive with overlapping reads"
+  ],
+  "environment": "cachy-vm only",
+  "delay_seconds": 1.5,
+  "installed_helper_modified": false
+}

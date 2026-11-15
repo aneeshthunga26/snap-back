@@ -1,0 +1,11 @@
+[Unit]
+Description=Snap Back hourly Btrfs backup
+After=local-fs.target
+ConditionPathExists=/etc/snap-back/config.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/snap-back backup --scheduled
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=infinity
