@@ -25,7 +25,7 @@ The publishing job creates a draft release, uploads the Linux x86_64 tarball, co
 
 ## Build environment
 
-Build jobs use the official `archlinux:base` container. The bootstrap step updates its packages and installs Git, `base-devel`, Rust, pkg-config, Wayland/XKB libraries, font libraries, Python, tar, and gzip before checkout. Arch's `rust` package includes Cargo, rustfmt, and Clippy. Official JavaScript actions run through the hosted runner's bundled Node runtime.
+Build jobs use the official `archlinux:base` container. The bootstrap step updates its packages and installs Git, `base-devel`, Rust, pkg-config, Wayland/XKB libraries, font libraries, Python, tar, and gzip before checkout. Arch's `rust` package includes Cargo, rustfmt, and Clippy. Build steps explicitly trust their checked-out workspace so Git can read source metadata across the container's ownership boundary. Official JavaScript actions run through the hosted runner's bundled Node runtime.
 
 Cargo output stays in the checkout's ignored `target/` directory; Cargo's dependency cache stays outside the checkout in the container's home directory. Workflows limit Cargo to two build jobs to keep memory use bounded. No backup drives, backup configuration, desktop session, or system-recovery privileges are needed for CI.
 
