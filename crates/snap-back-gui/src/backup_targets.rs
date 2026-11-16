@@ -234,6 +234,7 @@ mod tests {
 
     fn status() -> Status {
         Status {
+            configured: true,
             drive: Drive {
                 connected: true,
                 ..Drive::default()

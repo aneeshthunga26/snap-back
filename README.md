@@ -26,12 +26,12 @@ The interface is written in Rust with [Iced](https://iced.rs/), [iced-shadcn](ht
 
 Get the Linux x86_64 tarball and `SHA256SUMS` from the [latest release](https://github.com/aneeshthunga26/snap-back/releases/latest). The release also includes the source and dependency licenses.
 
-For version 0.1.0:
+For version 0.1.1:
 
 ```sh
 sha256sum --ignore-missing --check SHA256SUMS
-tar -xzf snap-back-0.1.0-linux-x86_64.tar.gz
-cd snap-back-0.1.0-linux-x86_64
+tar -xzf snap-back-0.1.1-linux-x86_64.tar.gz
+cd snap-back-0.1.1-linux-x86_64
 sudo ./install.sh
 ```
 
@@ -41,9 +41,11 @@ See [installation instructions](docs/INSTALL.md) for dependencies and building f
 
 ## Set up a backup drive
 
-Open **Settings → Backup storage → Choose backup drive**.
+On first launch, click **Choose backup drive**. You can add more drives later from **Settings → Backup storage**.
 
-For a new disk, choose **Set up drive** and check its device path, capacity, and serial. Setup **erases the whole disk, including every partition**. You must type the device-specific confirmation before anything is erased.
+![First launch, with a direct invitation to choose a backup drive](docs/screenshots/first-launch.png)
+
+For a new disk, choose **Set up…** and check its device path, capacity, and serial. Setup **erases the whole disk, including every partition**. You must type the device-specific confirmation before anything is erased.
 
 For an existing saved disk, **Browse backups** opens its restore points without changing your backup destinations.
 

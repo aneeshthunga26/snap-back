@@ -1,0 +1,43 @@
+{
+  "checks": [
+    "First launch offers setup without an error or retry panel",
+    "Primary drive-selection button is visible",
+    "All 24 frames stay pixel-identical across background refreshes",
+    "Real helper was polled at least three times",
+    "Choose backup drive opens real drive inventory",
+    "Drive picker keeps refresh and back in the same row",
+    "Malformed config displays one error card and no duplicate setup card",
+    "Error recovery buttons share a row",
+    "Successful refresh returns from a real error to setup",
+    "A configured status replaces setup with the actual backup overview"
+  ],
+  "frame_differences": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "environment": "cachy-vm, private mount namespace, Xvfb :95, tiny-skia",
+  "real_configuration_changed": false,
+  "backup_or_format_started": false
+}

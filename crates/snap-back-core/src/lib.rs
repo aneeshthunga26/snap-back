@@ -140,6 +140,7 @@ pub struct SnapperConfig {
 }
 #[derive(Debug, Serialize)]
 pub struct Status {
+    pub configured: bool,
     pub drive: Drive,
     pub points: Vec<Point>,
     pub busy: bool,
@@ -196,9 +197,24 @@ pub fn valid_id(id: &str) -> Result<()> {
     Ok(())
 }
 pub fn load_config() -> Result<Config> {
-    let c: Config = serde_json::from_slice(
-        &fs::read(CONFIG).context("Snap Back is not configured; run the VM installer")?,
-    )?;
+    load_config_at(Path::new(CONFIG))?
+        .context("Choose a backup drive in Snap Back to set up backups")
+}
+fn load_config_at(path: &Path) -> Result<Option<Config>> {
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!(
+                    "Could not read Snap Back configuration at {}",
+                    path.display()
+                )
+            });
+        }
+    };
+    let c: Config = serde_json::from_slice(&bytes)
+        .with_context(|| format!("Invalid Snap Back configuration at {}", path.display()))?;
     ensure!(
         c.destination.is_absolute() && c.destination != Path::new("/"),
         "Invalid backup mount"
@@ -208,7 +224,7 @@ pub fn load_config() -> Result<Config> {
         valid_id(&s.name)?;
         ensure!(s.mount.is_absolute(), "Invalid source mount");
     }
-    Ok(c)
+    Ok(Some(c))
 }
 fn atomic_json(path: &Path, value: &impl Serialize) -> Result<()> {
     let temp = path.with_extension("tmp");
@@ -302,7 +318,32 @@ pub fn points(c: &Config) -> Result<Vec<Point>> {
     Ok(points)
 }
 pub fn status() -> Result<Status> {
-    let c = load_config()?;
+    status_at(Path::new(CONFIG))
+}
+fn status_at(config_path: &Path) -> Result<Status> {
+    let Some(c) = load_config_at(config_path)? else {
+        return Ok(Status {
+            configured: false,
+            drive: Drive {
+                label: String::new(),
+                mount: PathBuf::new(),
+                total_bytes: 0,
+                used_bytes: 0,
+                available_bytes: 0,
+                connected: false,
+            },
+            points: vec![],
+            busy: busy(),
+            progress: fs::read_to_string(format!("{RUNTIME}/progress")).ok(),
+            last_error: None,
+            schedule_enabled: false,
+            configs: vec![],
+            recovery_pending: None,
+            backup_targets: vec![],
+            backup_drives: vec![],
+            message: None,
+        });
+    };
     let backup_targets = c
         .selected_targets(None)?
         .into_iter()
@@ -356,6 +397,7 @@ pub fn status() -> Result<Status> {
         })
         .collect();
     Ok(Status {
+        configured: true,
         drive: Drive {
             label: c
                 .targets
@@ -1207,6 +1249,81 @@ pub fn cancel_recovery() -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct ConfigFixture(PathBuf);
+
+    impl ConfigFixture {
+        fn new() -> Self {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "snap-back-config-test-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn config_path(&self) -> PathBuf {
+            self.0.join("config.json")
+        }
+    }
+
+    impl Drop for ConfigFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn missing_config_is_a_successful_first_launch_status() {
+        let fixture = ConfigFixture::new();
+        let status = status_at(&fixture.config_path()).unwrap();
+        assert!(!status.configured);
+        assert!(!status.drive.connected);
+        assert!(status.drive.mount.as_os_str().is_empty());
+        assert!(status.points.is_empty());
+        assert!(status.backup_drives.is_empty());
+        assert!(status.backup_targets.is_empty());
+        assert!(status.configs.is_empty());
+        assert!(status.last_error.is_none());
+        assert!(!status.schedule_enabled);
+        assert!(status.recovery_pending.is_none());
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["configured"], false);
+        assert!(json["last_error"].is_null());
+    }
+
+    #[test]
+    fn malformed_config_is_not_treated_as_first_launch() {
+        let fixture = ConfigFixture::new();
+        fs::write(fixture.config_path(), b"{broken configuration").unwrap();
+        let error = status_at(&fixture.config_path()).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("Invalid Snap Back configuration")
+        );
+        assert!(error.downcast_ref::<serde_json::Error>().is_some());
+    }
+
+    #[test]
+    fn config_read_errors_are_not_treated_as_first_launch() {
+        let fixture = ConfigFixture::new();
+        fs::create_dir(fixture.config_path()).unwrap();
+        let error = status_at(&fixture.config_path()).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("Could not read Snap Back configuration")
+        );
+        assert_ne!(
+            error.downcast_ref::<std::io::Error>().unwrap().kind(),
+            std::io::ErrorKind::NotFound
+        );
+    }
+
     fn point(id: usize, date: String) -> Point {
         Point {
             id: id.to_string(),

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- First launch opens with a setup invitation and a “Choose backup drive” button.
+- Background status checks keep the current view steady instead of flashing loading states.
+- Status failures appear once, with recovery actions side by side.
+- Empty restore views also keep their actions in one row.
+
 ## 0.1.0
 
 First public prototype for CachyOS.

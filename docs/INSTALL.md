@@ -8,8 +8,8 @@ Download the Linux x86_64 archive and `SHA256SUMS` from the project's GitHub Rel
 
 ```sh
 sha256sum --ignore-missing --check SHA256SUMS
-tar -xzf snap-back-0.1.0-linux-x86_64.tar.gz
-cd snap-back-0.1.0-linux-x86_64
+tar -xzf snap-back-0.1.1-linux-x86_64.tar.gz
+cd snap-back-0.1.1-linux-x86_64
 sudo ./install.sh
 ```
 
@@ -45,7 +45,7 @@ The source installer configures that destination on a fresh installation. If you
 ## Build release archives
 
 ```sh
-packaging/release.sh v0.1.0
+packaging/release.sh v0.1.1
 ```
 
 This builds both Rust binaries with `--locked --release`, checks the version against all workspace packages, and writes binary/source tarballs and `SHA256SUMS` into `dist/`. It respects `CARGO_TARGET_DIR`. To package binaries you just built, add `--skip-build`. Packaging also requires Python 3.11 or newer, Git, GNU tar, and gzip.

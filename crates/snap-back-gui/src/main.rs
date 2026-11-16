@@ -55,6 +55,7 @@ struct SnapperConfig {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 struct Status {
+    configured: bool,
     drive: Drive,
     points: Vec<RestorePoint>,
     busy: bool,
@@ -88,6 +89,13 @@ enum Page {
     Restore,
     Settings,
     Drives,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BackupState {
+    Loading,
+    Setup,
+    Ready,
+    Unavailable,
 }
 #[derive(Debug, Clone)]
 enum Message {
@@ -239,7 +247,7 @@ impl App {
     }
 
     fn operation(&mut self, label: &str, args: Vec<String>) -> Task<Message> {
-        if self.is_busy() || self.browsing || self.status_error.is_some() || self.status.is_none() {
+        if !self.can_operate() {
             return Task::none();
         }
         self.busy = Some(label.into());
@@ -273,8 +281,23 @@ impl App {
         self.confirmation.clear();
     }
 
+    fn backup_state(&self) -> BackupState {
+        if self.status.as_ref().is_some_and(|s| s.configured) {
+            BackupState::Ready
+        } else if self.status_error.is_some() {
+            BackupState::Unavailable
+        } else if self.status.is_some() {
+            BackupState::Setup
+        } else {
+            BackupState::Loading
+        }
+    }
+
     fn can_operate(&self) -> bool {
-        self.status.is_some() && self.status_error.is_none() && !self.is_busy() && !self.browsing
+        self.status.as_ref().is_some_and(|s| s.configured)
+            && self.status_error.is_none()
+            && !self.is_busy()
+            && !self.browsing
     }
 
     fn can_read_backups(&self) -> bool {
@@ -284,7 +307,10 @@ impl App {
     fn can_choose_backup(&self) -> bool {
         self.status_error.is_none()
             && !self.is_busy()
-            && self.status.as_ref().is_some_and(|s| s.drive.connected)
+            && self
+                .status
+                .as_ref()
+                .is_some_and(|s| s.configured && s.drive.connected)
     }
 
     fn can_backup(&self) -> bool {
@@ -804,19 +830,43 @@ impl App {
         // progress/notice cards enter below it. The primary action never jumps.
         if self.page == Page::Overview
             && let Some(status) = &self.status
+            && status.configured
         {
             content = content.push(self.overview_hero(status));
         }
         if let Some(error) = &self.status_error
-            && !(self.page == Page::Drives && self.status.is_none())
+            && self.page != Page::Drives
         {
-            content = content.push(card(column![
-                text("Backup status unavailable").size(18).color(RED),
-                text(error).size(13),
-                text("Displayed information may be out of date. Actions are unavailable until status can be refreshed.").size(12).color(MUTED),
-                self.action("Retry", Message::Refresh, ButtonVariant::Outline, !self.fetching),
-                self.action("Choose backup drive", Message::OpenDrives, ButtonVariant::Outline, self.can_open_drives())
-            ].spacing(10)));
+            content = content.push(card(
+                column![
+                    text("Couldn’t check backups").size(20),
+                    text(error).size(13).color(MUTED),
+                    text(if self.status.as_ref().is_some_and(|s| s.configured) {
+                        "Showing the last available information. Refresh to try again."
+                    } else {
+                        "Refresh to try again, or choose a backup drive."
+                    })
+                    .size(13)
+                    .color(MUTED),
+                    row![
+                        self.action(
+                            "Try again",
+                            Message::Refresh,
+                            ButtonVariant::Default,
+                            !self.browsing
+                        ),
+                        self.action(
+                            "Choose backup drive",
+                            Message::OpenDrives,
+                            ButtonVariant::Outline,
+                            self.can_open_drives()
+                        )
+                    ]
+                    .spacing(10)
+                    .align_y(Alignment::Center)
+                ]
+                .spacing(14),
+            ));
         }
         if let Some((error, message)) = &self.notice {
             content = content.push(
@@ -880,12 +930,25 @@ impl App {
                 row![self.action("Restart and restore", Message::Reboot, ButtonVariant::Default, self.can_operate()), self.action("Cancel recovery", Message::CancelRecovery, ButtonVariant::Outline, self.can_operate())].spacing(10)
             ].spacing(14)));
         }
-        content = content.push(match self.page {
-            Page::Overview => self.overview(),
-            Page::Restore => self.restore(),
-            Page::Settings => self.settings(),
-            Page::Drives => self.drive_picker(),
-        });
+        if self.page == Page::Drives {
+            content = content.push(self.drive_picker());
+        } else {
+            match self.backup_state() {
+                BackupState::Ready => {
+                    content = content.push(match self.page {
+                        Page::Overview => self.overview(),
+                        Page::Restore => self.restore(),
+                        Page::Settings => self.settings(),
+                        Page::Drives => unreachable!(),
+                    });
+                }
+                BackupState::Setup => content = content.push(self.setup_welcome()),
+                BackupState::Loading => {
+                    content = content.push(card(text("Checking backups…").size(20).color(MUTED)));
+                }
+                BackupState::Unavailable => {}
+            }
+        }
         let main_content = container(
             scrollable(container(content).padding(32).width(Fill))
                 .id("main-content")
@@ -1010,7 +1073,9 @@ impl App {
                                 "drives"
                             }
                         )
-                    } else if self.status.is_none() && self.fetching {
+                    } else if self.status.as_ref().is_some_and(|s| !s.configured) {
+                        "Choose a backup drive".into()
+                    } else if self.status.is_none() && self.status_error.is_none() {
                         "Checking backup drives…".into()
                     } else {
                         "No backup drives connected".into()
@@ -1066,11 +1131,7 @@ impl App {
             .spacing(9)
             .width(Fill),
             self.action(
-                if if self.page == Page::Drives {
-                    self.drive_setup.loading
-                } else {
-                    self.fetching
-                } {
+                if self.page == Page::Drives && self.drive_setup.loading {
                     "Refreshing…"
                 } else {
                     "Refresh"
@@ -1080,7 +1141,7 @@ impl App {
                 if self.page == Page::Drives {
                     self.can_open_drives() && !self.drive_setup.loading
                 } else {
-                    !self.fetching && !self.browsing
+                    !self.browsing
                 }
             )
         ]
@@ -1149,34 +1210,28 @@ impl App {
         .into()
     }
 
+    fn setup_welcome(&self) -> Element<'_, Message> {
+        card(
+            row![
+                self.motion.hero(),
+                column![
+                    text("Set up your first backup").size(26),
+                    text("Choose a drive to keep backups of your system and home directories.")
+                        .size(14).color(MUTED),
+                    text("Once it’s set up, Snap Back saves a backup every hour while your drive is connected.")
+                        .size(13).color(MUTED),
+                    row![self.action(
+                        "Choose backup drive", Message::OpenDrives,
+                        ButtonVariant::Default, self.can_open_drives()
+                    )].spacing(10)
+                ].spacing(16).width(Fill)
+            ].spacing(26).align_y(Alignment::Center)
+        )
+    }
+
     fn overview(&self) -> Element<'_, Message> {
         let Some(status) = &self.status else {
-            return card(
-                column![
-                    text(if self.fetching {
-                        "Loading backup status…"
-                    } else {
-                        "Backup status unavailable"
-                    })
-                    .size(24),
-                    text("Check the error above, then retry.")
-                        .size(14)
-                        .color(MUTED),
-                    self.action(
-                        "Try again",
-                        Message::Refresh,
-                        ButtonVariant::Default,
-                        !self.fetching
-                    ),
-                    self.action(
-                        "Choose backup drive",
-                        Message::OpenDrives,
-                        ButtonVariant::Outline,
-                        self.can_open_drives()
-                    )
-                ]
-                .spacing(16),
-            );
+            return Space::new().into();
         };
         let used = if status.drive.total_bytes > 0 {
             (status.drive.used_bytes as f32 / status.drive.total_bytes as f32).clamp(0.0, 1.0)
@@ -1390,13 +1445,17 @@ impl App {
                 column![
                     text("No backups available").size(23),
                     text("Create a backup before recovering files or the system.").color(MUTED),
-                    self.backup_button(),
-                    self.action(
-                        "Browse another drive",
-                        Message::OpenDrives,
-                        ButtonVariant::Ghost,
-                        self.can_open_drives()
-                    )
+                    row![
+                        self.backup_button(),
+                        self.action(
+                            "Browse another drive",
+                            Message::OpenDrives,
+                            ButtonVariant::Ghost,
+                            self.can_open_drives()
+                        )
+                    ]
+                    .spacing(12)
+                    .align_y(Alignment::Center)
                 ]
                 .spacing(16),
             );
@@ -1718,9 +1777,13 @@ impl App {
                         ButtonVariant::Outline,
                         self.can_open_drives()
                     ),
-                    text("Snap Back 0.1.0 · CachyOS prototype")
-                        .size(11)
-                        .color(MUTED)
+                    text(concat!(
+                        "Snap Back ",
+                        env!("CARGO_PKG_VERSION"),
+                        " · CachyOS prototype"
+                    ))
+                    .size(11)
+                    .color(MUTED)
                 ]
                 .spacing(14)
             )
@@ -1883,6 +1946,7 @@ mod tests {
     use super::*;
     fn status(id: &str) -> Status {
         Status {
+            configured: true,
             backup_targets: vec!["drive-a".into()],
             backup_drives: vec![BackupDrive {
                 uuid: "drive-a".into(),
@@ -1902,6 +1966,45 @@ mod tests {
             ..Status::default()
         }
     }
+    #[test]
+    fn first_launch_is_setup_and_background_polls_keep_it_there() {
+        let (mut app, _) = App::new();
+        assert_eq!(app.backup_state(), BackupState::Loading);
+        let _ = app.update(Message::StatusLoaded(Ok(Status::default())));
+        for _ in 0..3 {
+            assert_eq!(app.backup_state(), BackupState::Setup);
+            let _ = app.update(Message::Tick);
+            assert!(app.fetching);
+            assert_eq!(app.backup_state(), BackupState::Setup);
+            let _ = app.update(Message::StatusLoaded(Ok(Status::default())));
+            assert!(app.status_error.is_none());
+        }
+        assert!(!app.can_operate() && !app.can_backup() && !app.can_recover());
+        assert!(app.can_open_drives() && app.can_change_drive());
+        let _ = app.update(Message::OpenDrives);
+        assert_eq!(app.page, Page::Drives);
+        assert!(app.drive_setup.loading);
+    }
+
+    #[test]
+    fn setup_completion_enables_backups_and_real_status_failures_stay_visible() {
+        let (mut app, _) = App::new();
+        let _ = app.update(Message::StatusLoaded(Ok(Status::default())));
+        let _ = app.update(Message::StatusLoaded(
+            Err("Unreadable configuration".into()),
+        ));
+        assert_eq!(app.backup_state(), BackupState::Unavailable);
+        let _ = app.update(Message::Tick);
+        assert_eq!(app.backup_state(), BackupState::Unavailable);
+        let _ = app.update(Message::StatusLoaded(Ok(status("point"))));
+        assert_eq!(app.backup_state(), BackupState::Ready);
+        assert!(app.can_backup() && app.status_error.is_none());
+        let _ = app.update(Message::StatusLoaded(Err("Read failed".into())));
+        assert_eq!(app.backup_state(), BackupState::Ready);
+        assert_eq!(app.point.as_deref(), Some("point"));
+        assert!(!app.can_backup());
+    }
+
     #[test]
     fn backup_click_starts_motion_before_helper_response() {
         let (mut app, _) = App::new();
