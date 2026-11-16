@@ -68,6 +68,8 @@ pub struct SavedDrive {
     pub label: String,
     pub connected: bool,
     pub active: bool,
+    pub mounted: bool,
+    pub unmounted: bool,
     pub device: Option<String>,
     pub size_bytes: u64,
 }
@@ -261,6 +263,8 @@ pub fn drives() -> Result<Drives> {
                     .find(|n| n.uuid.as_deref() == Some(t.uuid.as_str()));
                 SavedDrive {
                     active: t.uuid == c.backup_uuid,
+                    mounted: mounted(&t).unwrap_or(false),
+                    unmounted: intentionally_unmounted(&t.uuid),
                     connected: device.is_some(),
                     uuid: t.uuid,
                     mount: t.mount,
@@ -519,6 +523,10 @@ pub(crate) fn ensure_target_mounted(config: &Config, target: &BackupTarget) -> R
         matching.len() == 1 && matching[0].fstype.as_deref() == Some("btrfs"),
         "Saved backup drive is disconnected, ambiguous, or no longer Btrfs"
     );
+    ensure!(
+        !intentionally_unmounted(&target.uuid),
+        "Backup drive was unmounted. Choose Use drive to resume backups"
+    );
     mount_target(target)?;
     Ok(())
 }
@@ -738,6 +746,46 @@ pub fn setup_drive(token: &str, confirmation: &str) -> Result<String> {
         target.label
     ))
 }
+// Runtime-only suppression prevents the hourly service from remounting a drive
+// the user has just unmounted. Explicit Use drive (or reboot) resumes it.
+fn unmounted_marker(uuid: &str) -> Result<PathBuf> {
+    crate::valid_id(uuid)?;
+    Ok(Path::new("/run/snap-back/unmounted").join(uuid))
+}
+pub(crate) fn intentionally_unmounted(uuid: &str) -> bool {
+    unmounted_marker(uuid).is_ok_and(|path| path.exists())
+}
+pub fn unmount_drive(uuid: &str) -> Result<String> {
+    let _lock = Operation::start()?;
+    no_recovery()?;
+    let c = load_config()?;
+    let target = c
+        .registered_targets()?
+        .into_iter()
+        .find(|t| t.uuid == uuid)
+        .context("Choose a saved backup drive")?;
+    ensure!(
+        uuid != c.source_uuid,
+        "The system filesystem cannot be unmounted"
+    );
+    ensure!(mounted(&target)?, "This backup drive is already unmounted");
+    let marker = unmounted_marker(uuid)?;
+    fs::create_dir_all(marker.parent().unwrap())?;
+    // Write the suppression before umount so a crash cannot re-enable backups.
+    fs::write(&marker, b"Unmounted by user\n")?;
+    if let Err(error) = command(
+        "umount",
+        &["--", target.mount.to_str().context("Invalid mount path")?],
+    ) {
+        let _ = fs::remove_file(&marker);
+        return Err(error.context("Could not unmount the backup drive. Close files or applications using it and try again."));
+    }
+    Ok(format!(
+        "{} is unmounted. Use drive resumes backups; restarting also resumes them. Other partitions on this disk may still be in use.",
+        target.label
+    ))
+}
+
 pub fn use_drive(uuid: &str) -> Result<String> {
     let _lock = Operation::start()?;
     no_recovery()?;
@@ -774,6 +822,10 @@ pub fn use_drive(uuid: &str) -> Result<String> {
         }
         rollback.context("Could not restore the previous backup configuration")?;
         return Err(error);
+    }
+    let marker = unmounted_marker(uuid)?;
+    if marker.exists() {
+        fs::remove_file(marker)?;
     }
     let _ = command("systemctl", &["daemon-reload"]);
     Ok(format!(

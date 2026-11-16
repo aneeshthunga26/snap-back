@@ -130,6 +130,7 @@ pub struct BackupDriveStatus {
     pub mount: PathBuf,
     pub connected: bool,
     pub mounted: bool,
+    pub unmounted: bool,
 }
 #[derive(Debug, Serialize)]
 pub struct SnapperConfig {
@@ -358,6 +359,7 @@ fn status_at(config_path: &Path) -> Result<Status> {
             config.backup_uuid = target.uuid.clone();
             let mounted = validate_drive(&config).is_ok();
             BackupDriveStatus {
+                unmounted: drives::intentionally_unmounted(&target.uuid),
                 connected: mounted || Path::new("/dev/disk/by-uuid").join(&target.uuid).exists(),
                 mounted,
                 uuid: target.uuid,
@@ -727,9 +729,14 @@ pub fn backup(
         c.backup_targets = Some(targets.iter().map(|target| target.uuid.clone()).collect());
         atomic_json(Path::new(CONFIG), &c)?;
     }
+    let mut skipped = Vec::new();
     let mut completed = Vec::new();
     let mut failed = Vec::new();
     for target in &targets {
+        if drives::intentionally_unmounted(&target.uuid) {
+            skipped.push(target.label.clone());
+            continue;
+        }
         write_progress(&format!("Preparing {}", target.label));
         let mut destination = c.clone();
         destination.destination = target.mount.clone();
@@ -760,7 +767,9 @@ pub fn backup(
     let _ = fs::remove_file(format!("{STATE}/last-error"));
     drop(_op);
     let mut status = status()?;
-    status.message = Some(if completed.len() == 1 {
+    status.message = Some(if completed.is_empty() {
+        "Backup drives are unmounted. Choose Use drive to resume backups.".into()
+    } else if completed.len() == 1 {
         format!("Backed up to {}.", completed[0])
     } else {
         format!(
@@ -769,6 +778,13 @@ pub fn backup(
             completed.join(", ")
         )
     });
+    if !skipped.is_empty() && !completed.is_empty() {
+        status.message = Some(format!(
+            "{} Skipped unmounted drives: {}.",
+            status.message.unwrap_or_default(),
+            skipped.join(", ")
+        ));
+    }
     Ok(status)
 }
 fn backup_inner(c: &Config, label: Option<String>, scheduled: bool) -> Result<()> {

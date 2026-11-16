@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "Unknown drive refused",
+    "Active operation lock refuses unmount",
+    "Kernel busy mount refusal leaves mounted drive enabled",
+    "Unmount succeeds, exposes physical connection and suppression, keeps config",
+    "Hourly backup skips unmounted target without remounting",
+    "Use drive remounts and clears suppression without changing selections",
+    "Drive actions fit at 940x680 and 1180x800",
+    "GUI Unmount click unmounted vdc; Use drive remounted it"
+  ],
+  "vm": "cachy-vm",
+  "tested_drive": "469248ae-e83c-4ecc-bfdc-cbd384ea6eff",
+  "configuration_preserved": true
+}

@@ -75,6 +75,7 @@ struct BackupDrive {
     mount: String,
     connected: bool,
     mounted: bool,
+    unmounted: bool,
 }
 #[derive(Debug, Clone, Deserialize)]
 struct Entry {
@@ -147,6 +148,7 @@ enum Message {
     CancelDrivePlan,
     ConfirmEraseDrive,
     UseDrive(String),
+    UnmountDrive(String),
     DriveOperationDone(Result<String, String>),
 }
 
@@ -316,10 +318,11 @@ impl App {
     fn can_backup(&self) -> bool {
         self.can_choose_backup_targets()
             && self.status.as_ref().is_some_and(|status| {
-                status
-                    .backup_drives
-                    .iter()
-                    .any(|drive| drive.connected && self.backup_targets().contains(&drive.uuid))
+                status.backup_drives.iter().any(|drive| {
+                    !drive.unmounted
+                        && drive.connected
+                        && self.backup_targets().contains(&drive.uuid)
+                })
             })
     }
 
@@ -420,7 +423,7 @@ impl App {
                 if self
                     .operation_command
                     .as_deref()
-                    .is_some_and(|c| c == "setup-drive" || c == "use-drive")
+                    .is_some_and(|c| c == "setup-drive" || c == "use-drive" || c == "unmount-drive")
                 {
                     return Task::none();
                 }
@@ -712,12 +715,28 @@ impl App {
                     ],
                 );
             }
+            Message::UnmountDrive(uuid) => {
+                if self.can_change_drive()
+                    && self
+                        .drive_setup
+                        .inventory
+                        .as_ref()
+                        .is_some_and(|i| i.registered.iter().any(|d| d.uuid == uuid && d.mounted))
+                {
+                    return self.start_drive_operation(
+                        "Unmounting backup drive…",
+                        vec!["unmount-drive".into(), uuid],
+                    );
+                }
+            }
             Message::UseDrive(uuid) => {
                 if !self.can_change_drive()
                     || !self.drive_setup.inventory.as_ref().is_some_and(|i| {
-                        i.registered
-                            .iter()
-                            .any(|d| d.uuid == uuid && d.connected && !d.active)
+                        i.registered.iter().any(|d| {
+                            d.uuid == uuid
+                                && d.connected
+                                && (!d.active || !d.mounted || d.unmounted)
+                        })
                     })
                 {
                     return Task::none();
@@ -729,6 +748,7 @@ impl App {
             }
             Message::DriveOperationDone(result) => {
                 self.busy = None;
+                let unmounted = self.operation_command.as_deref() == Some("unmount-drive");
                 let added_drive = self.operation_command.as_deref() == Some("setup-drive");
                 self.operation_command = None;
                 match result {
@@ -743,7 +763,9 @@ impl App {
                         self.point = None;
                         self.status = None;
                         self.status_error = None;
-                        self.page = if added_drive {
+                        self.page = if unmounted {
+                            Page::Drives
+                        } else if added_drive {
                             Page::Overview
                         } else {
                             Page::Restore
@@ -752,12 +774,24 @@ impl App {
                     }
                     Err(error) => {
                         self.clear_drive_plan();
-                        self.drive_setup.error = Some(error);
+                        if unmounted {
+                            self.notice = Some((true, error));
+                        } else {
+                            self.drive_setup.error = Some(error);
+                        }
                     }
                 }
                 self.motion.set_active(self.is_busy());
                 self.fetching = true;
-                return Task::batch([status_task(), reset_main_scroll()]);
+                return Task::batch([
+                    status_task(),
+                    reset_main_scroll(),
+                    if unmounted {
+                        self.refresh_drives()
+                    } else {
+                        Task::none()
+                    },
+                ]);
             }
         }
         self.motion.set_active(self.is_busy());
@@ -1028,10 +1062,9 @@ impl App {
                 .padding([13, 14])
                 .width(Fill)
                 .on_press_maybe(
-                    (!self
-                        .operation_command
-                        .as_deref()
-                        .is_some_and(|c| c == "setup-drive" || c == "use-drive"))
+                    (!self.operation_command.as_deref().is_some_and(|c| {
+                        c == "setup-drive" || c == "use-drive" || c == "unmount-drive"
+                    }))
                     .then_some(Message::Navigate(page)),
                 )
                 .style(move |_, status| nav_style(selected, status))
@@ -1151,10 +1184,9 @@ impl App {
 
     fn overview_hero(&self, status: &Status) -> Element<'_, Message> {
         let has_backup = !status.points.is_empty();
-        let destinations_available = status
-            .backup_drives
-            .iter()
-            .any(|drive| drive.connected && self.backup_targets().contains(&drive.uuid));
+        let destinations_available = status.backup_drives.iter().any(|drive| {
+            !drive.unmounted && drive.connected && self.backup_targets().contains(&drive.uuid)
+        });
         let headline = if status.recovery_pending.is_some() {
             "System recovery prepared"
         } else if self.is_busy() {

@@ -13,6 +13,8 @@ pub(super) struct SavedDrive {
     pub label: String,
     pub connected: bool,
     pub active: bool,
+    pub mounted: bool,
+    pub unmounted: bool,
     #[serde(default)]
     pub device: Option<String>,
     #[serde(default)]
@@ -135,9 +137,9 @@ impl App {
         if self
             .operation_command
             .as_deref()
-            .is_some_and(|c| c == "setup-drive" || c == "use-drive")
+            .is_some_and(|c| c == "setup-drive" || c == "use-drive" || c == "unmount-drive")
         {
-            return card(column![text(if self.operation_command.as_deref()==Some("setup-drive"){"Preparing backup drive…"}else{"Opening drive backups…"}).size(23),text("Keep the drive connected. This operation must finish before another drive can be opened.").size(14).color(MUTED)].spacing(14));
+            return card(column![text(if self.operation_command.as_deref()==Some("setup-drive"){"Preparing backup drive…"}else if self.operation_command.as_deref()==Some("unmount-drive"){"Unmounting backup drive…"}else{"Opening drive backups…"}).size(23),text("Keep the drive connected. This operation must finish before another drive can be opened.").size(14).color(MUTED)].spacing(14));
         }
         if self.drive_setup.planning {
             return card(
@@ -229,7 +231,9 @@ impl App {
                         )
                         .size(12)
                         .color(MUTED),
-                        text(if drive.active {
+                        text(if drive.unmounted {
+                            "Unmounted · backups paused until Use drive or restart"
+                        } else if drive.active {
                             "Browsing this drive"
                         } else if drive.connected {
                             "Connected · existing backups are kept"
@@ -241,16 +245,29 @@ impl App {
                     ]
                     .spacing(6)
                     .width(Fill),
-                    self.action(
-                        if drive.active {
-                            "Browsing"
-                        } else {
-                            "Browse backups"
-                        },
-                        Message::UseDrive(drive.uuid.clone()),
-                        ButtonVariant::Outline,
-                        self.can_change_drive() && !drive.active && drive.connected
-                    )
+                    row![
+                        self.action(
+                            if !drive.mounted || drive.unmounted {
+                                "Use drive"
+                            } else if drive.active {
+                                "Browsing"
+                            } else {
+                                "Browse backups"
+                            },
+                            Message::UseDrive(drive.uuid.clone()),
+                            ButtonVariant::Outline,
+                            self.can_change_drive()
+                                && (!drive.active || !drive.mounted || drive.unmounted)
+                                && drive.connected
+                        ),
+                        self.action(
+                            "Unmount",
+                            Message::UnmountDrive(drive.uuid.clone()),
+                            ButtonVariant::Outline,
+                            self.can_change_drive() && drive.mounted
+                        )
+                    ]
+                    .spacing(10)
                 ]
                 .spacing(14)
                 .align_y(Alignment::Center),

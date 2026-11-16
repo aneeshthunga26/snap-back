@@ -53,6 +53,8 @@ The arrow beside **Back up now** lets you check one or more drives. Clicking **B
 
 ![Backup drive menu with two destinations selected](docs/screenshots/multi-drive-menu.png)
 
+In **Manage drives**, use **Unmount** before disconnecting a backup drive. Snap Back disables unmounting during backups or restores and refuses to unmount a drive that other applications are using. The drive stays paused until you choose **Use drive** or restart the machine. Unmounting a backup filesystem does not power off the disk or unmount its other partitions.
+
 ## Restore files or the system
 
 In **Restore**, pick a restore point and browse Home or Root. Select a file or folder, choose a new destination directory, and copy it out. Switching restore points keeps the previous listing visible until the next one is ready.

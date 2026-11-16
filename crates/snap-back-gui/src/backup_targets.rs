@@ -102,7 +102,9 @@ impl App {
                                     &drive.label
                                 })
                                 .size(14),
-                                text(if !drive.connected {
+                                text(if drive.unmounted {
+                                    "Unmounted · choose Use drive to resume"
+                                } else if !drive.connected {
                                     "Not connected"
                                 } else if drive.mounted {
                                     "Connected"
@@ -267,6 +269,18 @@ mod tests {
         saved.backup_targets = vec!["b".into(), "a".into()];
         let _ = app.update(Message::StatusLoaded(Ok(saved)));
         assert!(app.backup_selection.is_none());
+    }
+
+    #[test]
+    fn unmounted_destinations_stay_selected_but_do_not_enable_backup() {
+        let (mut app, _) = App::new();
+        let mut saved = status();
+        saved.backup_drives[0].unmounted = true;
+        app.status = Some(saved);
+        assert_eq!(app.backup_targets(), ["a"]);
+        assert!(!app.can_backup());
+        let _ = app.update(Message::BackupTarget("b".into(), true));
+        assert!(app.can_backup());
     }
 
     #[test]

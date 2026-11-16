@@ -23,6 +23,9 @@ enum Commands {
         #[arg(long)]
         confirm: String,
     },
+    UnmountDrive {
+        uuid: String,
+    },
     UseDrive {
         uuid: String,
     },
@@ -82,6 +85,7 @@ fn run() -> Result<()> {
         Commands::SetupDrive { token, confirm } => {
             message(core::drives::setup_drive(&token, &confirm)?)
         }
+        Commands::UnmountDrive { uuid } => message(core::drives::unmount_drive(&uuid)?),
         Commands::UseDrive { uuid } => message(core::drives::use_drive(&uuid)?),
         Commands::SetBackupDrives { drives } => message(core::drives::set_backup_drives(&drives)?),
         Commands::Status => println!("{}", serde_json::to_string(&core::status()?)?),

@@ -121,3 +121,7 @@ All 38 workspace tests, formatting checks, strict Clippy, and the release build 
 ## Caption alignment (0.1.2, 16 November 2026)
 
 VM screenshots reproduced icons anchored toward the top-left of their button circles. Using centered, down-only SVG fitting corrected the offset while retaining native icon sizes and full-circle hover behavior. Close, maximize, and minimize were checked with the installed Adwaita and Breeze symbolic icons at 100% and 125% scaling. Native glyph placement is preserved, including Adwaita’s low minimize stroke.
+
+## Safe unmount (16 November 2026)
+
+All 39 workspace tests, strict Clippy, and the release build passed in the VM. Actual secondary-drive checks covered unknown-drive refusal, the operation lock, kernel busy-mount refusal with suppression rollback, successful unmount, scheduled-backup suppression, and remount through Use drive. Configuration and target selections were unchanged. The real GUI Unmount action also unmounted that secondary drive; both saved drives were left mounted afterward. Controls fit at 940 × 680 and 1180 × 800. Pending recovery is refused by the existing backend guard; this pass did not stage a recovery. See `evidence/unmount.json` and `screenshots/unmount-drives.png`.
