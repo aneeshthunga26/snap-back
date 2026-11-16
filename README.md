@@ -26,12 +26,12 @@ The interface is written in Rust with [Iced](https://iced.rs/), [iced-shadcn](ht
 
 Get the Linux x86_64 tarball and `SHA256SUMS` from the [latest release](https://github.com/aneeshthunga26/snap-back/releases/latest). The release also includes the source and dependency licenses.
 
-For version 0.1.1:
+For version 0.1.2:
 
 ```sh
 sha256sum --ignore-missing --check SHA256SUMS
-tar -xzf snap-back-0.1.1-linux-x86_64.tar.gz
-cd snap-back-0.1.1-linux-x86_64
+tar -xzf snap-back-0.1.2-linux-x86_64.tar.gz
+cd snap-back-0.1.2-linux-x86_64
 sudo ./install.sh
 ```
 

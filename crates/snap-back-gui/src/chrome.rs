@@ -183,12 +183,13 @@ impl WindowChrome {
         let breeze = self.appearance == Appearance::Breeze;
         let diameter = if breeze { 18.0 } else { 24.0 };
         let foreground = WHITE.scale_alpha(if self.focused { 1.0 } else { 0.55 });
-        // The SVG fills the button's hit rectangle, so its hover filter changes
-        // with the whole circle. Native symbolic SVGs retain their 16 px size.
+        // Keep the SVG hit area equal to the circle so its hover filter changes
+        // over the whole button. ScaleDown centers native-size icons within it;
+        // ContentFit::None anchors them at the top-left in Iced 0.14.
         let glyph = svg(icon.clone())
             .width(diameter)
             .height(diameter)
-            .content_fit(iced::ContentFit::None)
+            .content_fit(iced::ContentFit::ScaleDown)
             .style(move |_, status| svg::Style {
                 color: Some(if breeze && status == svg::Status::Hovered {
                     BG

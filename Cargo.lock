@@ -4056,7 +4056,7 @@ dependencies = [
 
 [[package]]
 name = "snap-back-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -4066,7 +4066,7 @@ dependencies = [
 
 [[package]]
 name = "snap-back-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4078,7 +4078,7 @@ dependencies = [
 
 [[package]]
 name = "snap-back-gui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "freedesktop-icons",

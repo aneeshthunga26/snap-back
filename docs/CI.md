@@ -15,8 +15,8 @@ Pull requests, including forks, run on GitHub's isolated hosted runners with rea
 Update the workspace version and `Cargo.lock`, commit the change, then push a matching tag:
 
 ```sh
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 The release workflow repeats formatting, tests, and Clippy, then calls `packaging/release.sh` with the tag. A tag whose version does not match the Cargo workspace fails before publication. The workflow verifies the archives before handing them to a separate publishing job.

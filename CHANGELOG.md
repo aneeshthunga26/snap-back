@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Center desktop-themed window icons inside their circular buttons.
+
 ## 0.1.1
 
 - First launch opens with a setup invitation and a “Choose backup drive” button.

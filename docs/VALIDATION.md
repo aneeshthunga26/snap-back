@@ -117,3 +117,7 @@ The final product review clarified the menu's save timing and caught trails from
 All 38 workspace tests, formatting checks, strict Clippy, and the release build passed inside `cachy-vm`. Three core regressions distinguish missing configuration from malformed JSON and read failures; GUI regressions cover setup, repeated polling, and the transition to configured backups.
 
 `tools/vm-first-launch-qa.py` ran the actual GUI and helper in a private mount namespace, hiding the configuration only from that test. All ten graphical checks passed. The first-launch view offered drive setup, and 24 frames stayed pixel-identical across three status calls, each delayed by 700 ms. Clicking the primary action opened the actual drive inventory. A malformed test configuration showed one error card with horizontal recovery actions; removing it returned to setup, and providing a valid configuration opened the normal backup overview. The real configuration and disks were unchanged. See `evidence/first-launch.json` and `screenshots/first-launch.png`.
+
+## Caption alignment (0.1.2, 16 November 2026)
+
+VM screenshots reproduced icons anchored toward the top-left of their button circles. Using centered, down-only SVG fitting corrected the offset while retaining native icon sizes and full-circle hover behavior. Close, maximize, and minimize were checked with the installed Adwaita and Breeze symbolic icons at 100% and 125% scaling. Native glyph placement is preserved, including Adwaita’s low minimize stroke.
