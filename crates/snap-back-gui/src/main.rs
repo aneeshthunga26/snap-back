@@ -1001,7 +1001,7 @@ impl App {
             // own row above both panes so it cannot overlap the sidebar brand.
             column![
                 self.chrome.titlebar(),
-                row![sidebar, main_content].height(Fill)
+                row![sidebar, self.chrome.content_pane(main_content)].height(Fill)
             ]
             .width(Fill)
             .height(Fill)
@@ -1009,9 +1009,11 @@ impl App {
         } else {
             row![
                 sidebar,
-                column![self.chrome.titlebar(), main_content]
-                    .width(Fill)
-                    .height(Fill)
+                self.chrome.content_pane(
+                    column![self.chrome.titlebar(), main_content]
+                        .width(Fill)
+                        .height(Fill)
+                )
             ]
             .width(Fill)
             .height(Fill)

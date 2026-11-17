@@ -243,6 +243,53 @@ impl WindowChrome {
         .padding(if breeze { 2 } else { 5 })
         .into()
     }
+    pub fn content_pane<'a>(
+        &self,
+        content: impl Into<Element<'a, Message>>,
+    ) -> Element<'a, Message> {
+        let radius = self.corner_radius();
+        let outer = iced::border::Radius {
+            top_right: if self.has_leading_controls() {
+                0.0
+            } else {
+                radius
+            },
+            bottom_right: radius,
+            ..Default::default()
+        };
+        let inner = iced::border::Radius {
+            top_right: (outer.top_right - 1.0).max(0.0),
+            bottom_right: (outer.bottom_right - 1.0).max(0.0),
+            ..Default::default()
+        };
+        // The background forms three one-pixel edges. Zero left padding lets
+        // the sidebar's existing border remain the only shared divider.
+        container(
+            container(content)
+                .width(Fill)
+                .height(Fill)
+                .style(move |_| container::Style {
+                    background: Some(BG.into()),
+                    border: Border::default().rounded(inner),
+                    ..Default::default()
+                }),
+        )
+        .padding(iced::Padding {
+            top: 1.0,
+            right: 1.0,
+            bottom: 1.0,
+            left: 0.0,
+        })
+        .width(Fill)
+        .height(Fill)
+        .style(move |_| container::Style {
+            background: Some(LINE.into()),
+            border: Border::default().rounded(outer),
+            ..Default::default()
+        })
+        .into()
+    }
+
     pub fn frame<'a>(&self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
         let radius = self.corner_radius();
         let content: Element<'a, Message> = container(content)
