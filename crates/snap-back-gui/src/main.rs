@@ -13,6 +13,7 @@ mod backup_targets;
 mod chrome;
 mod desktop_theme;
 mod drives;
+mod equal_height_row;
 mod motion;
 use drives::{DriveInventory, DrivePlan, DriveSetup};
 
@@ -1392,16 +1393,9 @@ impl App {
                     .color(RED),
             );
         }
-        column![
-            row![
-                container(drive_card).width(Fill),
-                container(schedule_card).width(Fill)
-            ]
-            .spacing(16),
-            history
-        ]
-        .spacing(24)
-        .into()
+        column![equal_height_row::cards(drive_card, schedule_card), history]
+            .spacing(24)
+            .into()
     }
 
     fn timeline_row<'a>(&'a self, point: &'a RestorePoint) -> Element<'a, Message> {
