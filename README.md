@@ -14,6 +14,7 @@ This is an early prototype. Backup, file recovery, drive setup, and a full syste
 ## What it does
 
 - Backs up root, home, other configured system subvolumes, and boot files. Dotfiles and permissions are included.
+- Continues backing up configured subvolumes when others are discovered. The Overview lists the subvolumes skipped because they are outside the backup configuration.
 - Sends a full backup first, then incremental changes. Completed restore points are read-only.
 - Backs up to several drives in one run. Each drive keeps its own history and incremental parent. If one fails, the others are still attempted.
 - Runs hourly while the machine is on, keeping 24 hourly, 7 daily, and 4 weekly restore points. Backups in the same time bucket are coalesced.

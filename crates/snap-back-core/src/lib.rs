@@ -148,6 +148,7 @@ pub struct Status {
     pub busy: bool,
     pub progress: Option<String>,
     pub last_error: Option<String>,
+    pub skipped_subvolumes: Vec<String>,
     pub schedule_enabled: bool,
     pub configs: Vec<SnapperConfig>,
     pub recovery_pending: Option<String>,
@@ -338,6 +339,7 @@ fn status_at(config_path: &Path) -> Result<Status> {
             busy: busy(),
             progress: fs::read_to_string(format!("{RUNTIME}/progress")).ok(),
             last_error: None,
+            skipped_subvolumes: vec![],
             schedule_enabled: false,
             configs: vec![],
             recovery_pending: None,
@@ -418,6 +420,10 @@ fn status_at(config_path: &Path) -> Result<Status> {
         busy: busy(),
         progress: fs::read_to_string(format!("{RUNTIME}/progress")).ok(),
         last_error: fs::read_to_string(format!("{STATE}/last-error")).ok(),
+        skipped_subvolumes: fs::read(format!("{STATE}/skipped-subvolumes.json"))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default(),
         schedule_enabled: command("systemctl", &["is-enabled", "snap-back.timer"])
             .map(|s| s == "enabled")
             .unwrap_or(false),
@@ -647,9 +653,14 @@ fn cleanup_legacy_anchors(c: &Config, previous: Option<&Point>) -> Result<()> {
     Ok(())
 }
 
-fn validate_sources(c: &Config) -> Result<BTreeSet<String>> {
-    // A Btrfs snapshot does not recurse into child subvolumes. Refuse a backup
-    // with silently omitted data if the machine layout has changed since setup.
+struct SourceScan {
+    swap_volumes: BTreeSet<String>,
+    skipped_subvolumes: BTreeSet<String>,
+}
+
+fn scan_sources(c: &Config) -> Result<SourceScan> {
+    // Btrfs snapshots don't recurse into child subvolumes. Report any
+    // discovered data subvolumes that aren't included in the backup.
     let output = command("btrfs", &["subvolume", "list", "-a", "/"])?;
     let swap_volumes = swap::dedicated(&c.source_uuid, &output, &c.sources)?;
     let configured: BTreeSet<_> = c
@@ -661,11 +672,12 @@ fn validate_sources(c: &Config) -> Result<BTreeSet<String>> {
         "findmnt",
         &["--json", "-t", "btrfs", "-o", "TARGET,FSROOT,UUID"],
     )?)?;
-    fn check_mounts(
+    fn collect_unconfigured_mounts(
         entries: &serde_json::Value,
         c: &Config,
         configured: &BTreeSet<&str>,
         swap_volumes: &BTreeSet<String>,
+        skipped: &mut BTreeSet<String>,
     ) -> Result<()> {
         if let Some(entries) = entries.as_array() {
             for entry in entries {
@@ -676,19 +688,45 @@ fn validate_sources(c: &Config) -> Result<BTreeSet<String>> {
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .trim_start_matches('/');
-                    ensure!(
-                        target.starts_with("/run/snap-back")
-                            || configured.contains(fsroot)
-                            || swap_volumes.contains(fsroot),
-                        "Mounted Btrfs subvolume {target} ({fsroot}) is missing from the backup configuration"
-                    );
+                    // A replacement at a configured mount is not an extra
+                    // volume. Snapshotting it would back up the wrong source.
+                    if let Some(source) = c.sources.iter().find(|s| s.mount == Path::new(target)) {
+                        ensure!(
+                            source.subvol.trim_start_matches('/') == fsroot,
+                            "Configured source {} is mounted at {target}, but its Btrfs subvolume has changed",
+                            source.name
+                        );
+                    }
+                    if !target.starts_with("/run/snap-back")
+                        && !configured.contains(fsroot)
+                        && !swap_volumes.contains(fsroot)
+                    {
+                        skipped.insert(if fsroot.is_empty() {
+                            "/".into()
+                        } else {
+                            fsroot.into()
+                        });
+                    }
                 }
-                check_mounts(&entry["children"], c, configured, swap_volumes)?;
+                collect_unconfigured_mounts(
+                    &entry["children"],
+                    c,
+                    configured,
+                    swap_volumes,
+                    skipped,
+                )?;
             }
         }
         Ok(())
     }
-    check_mounts(&mounts["filesystems"], c, &configured, &swap_volumes)?;
+    let mut skipped_subvolumes = BTreeSet::new();
+    collect_unconfigured_mounts(
+        &mounts["filesystems"],
+        c,
+        &configured,
+        &swap_volumes,
+        &mut skipped_subvolumes,
+    )?;
     for (_, path) in swap::subvolumes(&output) {
         if path.split('/').any(|p| p == ".snapshots")
             || path.contains("/var/lib/snap-back/")
@@ -699,12 +737,14 @@ fn validate_sources(c: &Config) -> Result<BTreeSet<String>> {
         let under_source = configured
             .iter()
             .any(|source| path == *source || path.starts_with(&format!("{source}/")));
-        ensure!(
-            !under_source || configured.contains(path) || swap_volumes.contains(path),
-            "Unconfigured nested Btrfs subvolume {path}; add it to /etc/snap-back/config.json before backing up"
-        );
+        if under_source && !configured.contains(path) && !swap_volumes.contains(path) {
+            skipped_subvolumes.insert(path.to_owned());
+        }
     }
-    Ok(swap_volumes)
+    Ok(SourceScan {
+        swap_volumes,
+        skipped_subvolumes,
+    })
 }
 
 pub fn backup(
@@ -725,9 +765,15 @@ pub fn backup(
         "Cancel or complete the pending recovery before backing up"
     );
     fs::create_dir_all(STATE)?;
-    let swap_volumes = validate_sources(&c).inspect_err(|error| {
+    let scan = scan_sources(&c).inspect_err(|error| {
         let _ = fs::write(format!("{STATE}/last-error"), format!("{error:#}"));
     })?;
+    // Publish the list before generating snapshots so the UI can show it
+    // during the backup and report it after unattended runs.
+    atomic_json(
+        &Path::new(STATE).join("skipped-subvolumes.json"),
+        &scan.skipped_subvolumes,
+    )?;
     if save_targets {
         c.backup_targets = Some(targets.iter().map(|target| target.uuid.clone()).collect());
         atomic_json(Path::new(CONFIG), &c)?;
@@ -747,7 +793,7 @@ pub fn backup(
         let result = (|| -> Result<()> {
             drives::ensure_target_mounted(&destination, target)?;
             validate_drive(&destination)?;
-            backup_inner(&destination, label.clone(), scheduled, &swap_volumes)
+            backup_inner(&destination, label.clone(), scheduled, &scan.swap_volumes)
         })();
         match result {
             Ok(()) => completed.push(target.label.clone()),

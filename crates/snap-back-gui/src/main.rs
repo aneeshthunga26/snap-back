@@ -62,6 +62,7 @@ struct Status {
     busy: bool,
     progress: Option<String>,
     last_error: Option<String>,
+    skipped_subvolumes: Vec<String>,
     schedule_enabled: bool,
     configs: Vec<SnapperConfig>,
     recovery_pending: Option<String>,
@@ -953,6 +954,22 @@ impl App {
                 .spacing(10)
                 .align_y(Alignment::Center),
             ));
+        }
+        if matches!(self.page, Page::Overview | Page::Restore)
+            && let Some(status) = &self.status
+            && !status.skipped_subvolumes.is_empty()
+        {
+            let mut warning = column![
+                text("Subvolumes that will be skipped").size(18),
+                text("These subvolumes are outside your backup configuration.")
+                    .size(13)
+                    .color(MUTED),
+            ]
+            .spacing(8);
+            for subvolume in &status.skipped_subvolumes {
+                warning = warning.push(text(subvolume).size(13));
+            }
+            content = content.push(card(warning));
         }
         if let Some(pending) = self
             .status

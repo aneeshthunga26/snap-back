@@ -9,7 +9,7 @@ Open **Snap Back** from the application launcher inside `cachy-vm`.
 - Integrated window controls use the desktop's symbolic icon theme and KDE/GNOME button layout, with subtle rounded corners and no separate system title bar.
 - A graphical backup-drive picker with saved-drive switching, automatic mounting, and explicit whole-disk erase confirmation for new drives.
 - A split **Back up now** button with a checkbox menu for backing up to several saved drives in one run. The last used selection also receives hourly backups.
-- Root and home, all configured mounted system subvolumes, and nested machine/portable subvolumes. A changed layout is detected before backup so new subvolumes cannot be silently omitted.
+- Root and home, all configured mounted system subvolumes, and nested machine/portable subvolumes. Backups continue when the source layout changes and list any detected subvolumes outside the backup configuration.
 - First full transfer, then incremental transfers to an independently mounted Btrfs drive. Completed points are read-only and verified against the source snapshot UUID.
 - Automatic hourly backups while running; retention keeps the newest point in 24 occupied hourly, 7 daily, and 4 weekly buckets. Multiple backups within a bucket coalesce. Local Snapper configuration and cleanup remain separate from backup-disk retention.
 - Browse root/home snapshots and recover a file or folder into a new directory in your home. The previous listing stays visible while another folder or restore point loads. Existing destinations are refused.

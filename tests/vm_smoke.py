@@ -51,7 +51,12 @@ check('Schedule can be paused',not run('status')['schedule_enabled'])
 run('recover-offline',ok=False)
 check('Offline restore refuses live system')
 subprocess.run(['btrfs','subvolume','create','/home/aneesh/snap-back-unconfigured-test'],check=True,capture_output=True)
-try: check('Unconfigured nested subvolume refused','Unconfigured' in run('backup',ok=False))
+try:
+    s=run('backup','--label','Recovery test checkpoint')
+    point=s['points'][0]['id']
+    check('Backup reports skipped nested subvolume and keeps all configured sources',
+          '@home/aneesh/snap-back-unconfigured-test' in s['skipped_subvolumes']
+          and len(s['points'][0]['subvolumes']) == 9)
 finally: subprocess.run(['btrfs','subvolume','delete','/home/aneesh/snap-back-unconfigured-test'],check=True,capture_output=True)
 (LOG/'smoke-results.json').write_text(json.dumps(dict(point=point,checks=results),indent=2))
 (LOG/'recovery-point').write_text(point)
