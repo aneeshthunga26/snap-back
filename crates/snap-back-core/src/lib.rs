@@ -16,6 +16,7 @@ use std::{
 pub mod drives;
 pub mod recovery;
 pub mod setup;
+mod swap;
 pub const CONFIG: &str = "/etc/snap-back/config.json";
 const STATE: &str = "/var/lib/snap-back";
 const RUNTIME: &str = "/run/snap-back";
@@ -646,10 +647,11 @@ fn cleanup_legacy_anchors(c: &Config, previous: Option<&Point>) -> Result<()> {
     Ok(())
 }
 
-fn validate_sources(c: &Config) -> Result<()> {
+fn validate_sources(c: &Config) -> Result<BTreeSet<String>> {
     // A Btrfs snapshot does not recurse into child subvolumes. Refuse a backup
     // with silently omitted data if the machine layout has changed since setup.
     let output = command("btrfs", &["subvolume", "list", "-a", "/"])?;
+    let swap_volumes = swap::dedicated(&c.source_uuid, &output, &c.sources)?;
     let configured: BTreeSet<_> = c
         .sources
         .iter()
@@ -663,6 +665,7 @@ fn validate_sources(c: &Config) -> Result<()> {
         entries: &serde_json::Value,
         c: &Config,
         configured: &BTreeSet<&str>,
+        swap_volumes: &BTreeSet<String>,
     ) -> Result<()> {
         if let Some(entries) = entries.as_array() {
             for entry in entries {
@@ -674,21 +677,19 @@ fn validate_sources(c: &Config) -> Result<()> {
                         .unwrap_or("")
                         .trim_start_matches('/');
                     ensure!(
-                        target.starts_with("/run/snap-back") || configured.contains(fsroot),
+                        target.starts_with("/run/snap-back")
+                            || configured.contains(fsroot)
+                            || swap_volumes.contains(fsroot),
                         "Mounted Btrfs subvolume {target} ({fsroot}) is missing from the backup configuration"
                     );
                 }
-                check_mounts(&entry["children"], c, configured)?;
+                check_mounts(&entry["children"], c, configured, swap_volumes)?;
             }
         }
         Ok(())
     }
-    check_mounts(&mounts["filesystems"], c, &configured)?;
-    for line in output.lines() {
-        let Some((_, path)) = line.split_once(" path ") else {
-            continue;
-        };
-        let path = path.strip_prefix("<FS_TREE>/").unwrap_or(path);
+    check_mounts(&mounts["filesystems"], c, &configured, &swap_volumes)?;
+    for (_, path) in swap::subvolumes(&output) {
         if path.split('/').any(|p| p == ".snapshots")
             || path.contains("/var/lib/snap-back/")
             || path.starts_with(".snap-back-")
@@ -699,11 +700,11 @@ fn validate_sources(c: &Config) -> Result<()> {
             .iter()
             .any(|source| path == *source || path.starts_with(&format!("{source}/")));
         ensure!(
-            !under_source || configured.contains(path),
+            !under_source || configured.contains(path) || swap_volumes.contains(path),
             "Unconfigured nested Btrfs subvolume {path}; add it to /etc/snap-back/config.json before backing up"
         );
     }
-    Ok(())
+    Ok(swap_volumes)
 }
 
 pub fn backup(
@@ -719,12 +720,14 @@ pub fn backup(
         "Choose backup drives before saving the selection"
     );
     let targets = c.selected_targets((!requested.is_empty()).then_some(requested))?;
-    validate_sources(&c)?;
     ensure!(
         recovery::pending().is_none(),
         "Cancel or complete the pending recovery before backing up"
     );
     fs::create_dir_all(STATE)?;
+    let swap_volumes = validate_sources(&c).inspect_err(|error| {
+        let _ = fs::write(format!("{STATE}/last-error"), format!("{error:#}"));
+    })?;
     if save_targets {
         c.backup_targets = Some(targets.iter().map(|target| target.uuid.clone()).collect());
         atomic_json(Path::new(CONFIG), &c)?;
@@ -744,7 +747,7 @@ pub fn backup(
         let result = (|| -> Result<()> {
             drives::ensure_target_mounted(&destination, target)?;
             validate_drive(&destination)?;
-            backup_inner(&destination, label.clone(), scheduled)
+            backup_inner(&destination, label.clone(), scheduled, &swap_volumes)
         })();
         match result {
             Ok(()) => completed.push(target.label.clone()),
@@ -787,7 +790,12 @@ pub fn backup(
     }
     Ok(status)
 }
-fn backup_inner(c: &Config, label: Option<String>, scheduled: bool) -> Result<()> {
+fn backup_inner(
+    c: &Config,
+    label: Option<String>,
+    scheduled: bool,
+    swap_volumes: &BTreeSet<String>,
+) -> Result<()> {
     cleanup_interrupted(c)?;
     let now = Utc::now();
     let id = now.format("%Y%m%dT%H%M%S%fZ").to_string();
@@ -810,6 +818,9 @@ fn backup_inner(c: &Config, label: Option<String>, scheduled: bool) -> Result<()
     let mut snapshots = BTreeMap::new();
     let mut local_snapshots = Vec::new();
     for source in &c.sources {
+        if swap_volumes.contains(source.subvol.trim_start_matches('/')) {
+            continue;
+        }
         ensure!(
             command("findmnt", &["-n", "-T", ps(&source.mount)?, "-o", "UUID"])? == c.source_uuid,
             "Source {} is not on the configured filesystem",
@@ -945,7 +956,7 @@ fn backup_inner(c: &Config, label: Option<String>, scheduled: bool) -> Result<()
             "full".into()
         },
         bytes,
-        subvolumes: c.sources.iter().map(|s| s.name.clone()).collect(),
+        subvolumes: local_snapshots.into_iter().map(|(name, _)| name).collect(),
         snapshots,
         boot: true,
     };
@@ -1231,18 +1242,32 @@ pub fn prepare_recovery(id: &str) -> Result<String> {
     let c = load_config()?;
     validate_drive(&c)?;
     valid_id(id)?;
+    let subvolumes = command("btrfs", &["subvolume", "list", "-a", "/"])?;
+    let swap_volumes = swap::dedicated(&c.source_uuid, &subvolumes, &c.sources)?;
+    let sources: Vec<_> = c
+        .sources
+        .iter()
+        .filter(|source| !swap_volumes.contains(source.subvol.trim_start_matches('/')))
+        .collect();
+    for volume in &swap_volumes {
+        ensure!(
+            !sources.iter().any(|source| {
+                Path::new(volume).starts_with(source.subvol.trim_start_matches('/'))
+            }),
+            "System recovery would move the nested swap subvolume {volume} out of place. Move it to a separately mounted Btrfs subvolume outside the volumes being restored, then try again. File recovery is available."
+        );
+    }
     let point = points(&c)?
         .into_iter()
         .find(|p| p.id == id)
         .context("Restore point not found")?;
     ensure!(
-        c.sources.iter().all(|s| point.subvolumes.contains(&s.name)),
+        sources.iter().all(|s| point.subvolumes.contains(&s.name)),
         "Restore point is incomplete"
     );
     write_progress("Preparing offline system recovery; this can take several minutes");
-    let sources = c
-        .sources
-        .iter()
+    let sources = sources
+        .into_iter()
         .map(|s| recovery::RecoverySource {
             name: s.name.clone(),
             subvol: s.subvol.clone(),

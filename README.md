@@ -63,6 +63,8 @@ For a full rollback, choose **Restore system…**, review the backup, and type `
 
 Full recovery replaces root, home, and the other configured volumes. Changes made since the selected backup leave the active system; the previous volumes remain on disk for manual recovery.
 
+Snap Back skips dedicated Btrfs subvolumes containing only active or configured swap files. Use a separately mounted swap subvolume outside the volumes you restore if you need full system recovery. A nested swap subvolume would move with its parent during recovery, so Snap Back stops before preparing that restore.
+
 ![Restore browser with Home, Root, and Up in one row](docs/screenshots/restore-toolbar.png)
 
 ## Supported setup

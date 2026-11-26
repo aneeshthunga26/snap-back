@@ -75,11 +75,9 @@ pub fn configure(destination: &Path) -> Result<String> {
     );
     let root_subvol = command("findmnt", &["-n", "-M", "/", "-o", "FSROOT"])?;
     let root_subvol = root_subvol.trim_start_matches('/');
-    for line in command("btrfs", &["subvolume", "list", "-a", "/"])?.lines() {
-        let Some((_, p)) = line.split_once(" path ") else {
-            continue;
-        };
-        let p = p.strip_prefix("<FS_TREE>/").unwrap_or(p);
+    let subvolumes = command("btrfs", &["subvolume", "list", "-a", "/"])?;
+    let swap_volumes = crate::swap::dedicated(&source_uuid, &subvolumes, &[])?;
+    for (_, p) in crate::swap::subvolumes(&subvolumes) {
         if p.split('/').any(|c| c == ".snapshots")
             || p.contains("/var/lib/snap-back/")
             || p.starts_with(".snap-back-")
@@ -94,6 +92,9 @@ pub fn configure(destination: &Path) -> Result<String> {
     }
     let mut sources = Vec::new();
     for (subvol, mount) in source_mounts {
+        if swap_volumes.contains(&subvol) {
+            continue;
+        }
         let name = match mount.as_str() {
             "/" => "root".into(),
             "/home" => "home".into(),
