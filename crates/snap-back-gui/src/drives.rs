@@ -121,7 +121,7 @@ impl App {
             return Task::none();
         }
         self.busy = Some(label.into());
-        self.motion.set_active(true);
+        self.motion.set_activity(true, None);
         self.operation_command = args.first().cloned();
         self.notice = None;
         Task::perform(backend(args), |result| {

@@ -147,6 +147,7 @@ pub struct Status {
     pub points: Vec<Point>,
     pub busy: bool,
     pub progress: Option<String>,
+    pub backup_progress: Option<BackupProgress>,
     pub last_error: Option<String>,
     pub skipped_subvolumes: Vec<String>,
     pub schedule_enabled: bool,
@@ -243,6 +244,24 @@ fn write_progress(message: &str) {
     let _ = fs::create_dir_all(RUNTIME);
     let _ = fs::write(format!("{RUNTIME}/progress"), message);
 }
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct BackupProgress {
+    completed: usize,
+    total: usize,
+}
+
+impl BackupProgress {
+    fn publish(&self) {
+        let _ = atomic_json(&Path::new(RUNTIME).join("backup-progress.json"), self);
+    }
+
+    fn step_completed(&mut self) {
+        self.completed += 1;
+        self.publish();
+    }
+}
+
 pub struct Operation {
     _lock: File,
 }
@@ -258,12 +277,14 @@ impl Operation {
             .open(format!("{RUNTIME}/operation.lock"))?;
         lock.try_lock_exclusive()
             .context("Another backup or restore operation is already running")?;
+        let _ = fs::remove_file(format!("{RUNTIME}/backup-progress.json"));
         Ok(Self { _lock: lock })
     }
 }
 impl Drop for Operation {
     fn drop(&mut self) {
         let _ = fs::remove_file(format!("{RUNTIME}/progress"));
+        let _ = fs::remove_file(format!("{RUNTIME}/backup-progress.json"));
     }
 }
 fn busy() -> bool {
@@ -338,6 +359,7 @@ fn status_at(config_path: &Path) -> Result<Status> {
             points: vec![],
             busy: busy(),
             progress: fs::read_to_string(format!("{RUNTIME}/progress")).ok(),
+            backup_progress: None,
             last_error: None,
             skipped_subvolumes: vec![],
             schedule_enabled: false,
@@ -401,6 +423,7 @@ fn status_at(config_path: &Path) -> Result<Status> {
             }
         })
         .collect();
+    let busy = busy();
     Ok(Status {
         configured: true,
         drive: Drive {
@@ -417,8 +440,15 @@ fn status_at(config_path: &Path) -> Result<Status> {
             connected,
         },
         points: if connected { points(&c)? } else { vec![] },
-        busy: busy(),
+        busy,
         progress: fs::read_to_string(format!("{RUNTIME}/progress")).ok(),
+        backup_progress: if busy {
+            fs::read(format!("{RUNTIME}/backup-progress.json"))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        } else {
+            None
+        },
         last_error: fs::read_to_string(format!("{STATE}/last-error")).ok(),
         skipped_subvolumes: fs::read(format!("{STATE}/skipped-subvolumes.json"))
             .ok()
@@ -754,6 +784,8 @@ pub fn backup(
     save_targets: bool,
 ) -> Result<Status> {
     let _op = Operation::start()?;
+    let mut progress = BackupProgress::default();
+    progress.publish();
     let mut c = load_config()?;
     ensure!(
         !save_targets || !requested.is_empty(),
@@ -778,14 +810,21 @@ pub fn backup(
         c.backup_targets = Some(targets.iter().map(|target| target.uuid.clone()).collect());
         atomic_json(Path::new(CONFIG), &c)?;
     }
-    let mut skipped = Vec::new();
+    let (targets, unmounted): (Vec<_>, Vec<_>) = targets
+        .into_iter()
+        .partition(|target| !drives::intentionally_unmounted(&target.uuid));
+    let sources = c
+        .sources
+        .iter()
+        .filter(|s| !scan.swap_volumes.contains(s.subvol.trim_start_matches('/')))
+        .count();
+    // Each destination takes a snapshot and transfers it for every source,
+    // then saves boot files, commits the point, and applies retention.
+    progress.total = targets.len() * (2 * sources + 1);
+    progress.publish();
     let mut completed = Vec::new();
     let mut failed = Vec::new();
     for target in &targets {
-        if drives::intentionally_unmounted(&target.uuid) {
-            skipped.push(target.label.clone());
-            continue;
-        }
         write_progress(&format!("Preparing {}", target.label));
         let mut destination = c.clone();
         destination.destination = target.mount.clone();
@@ -793,7 +832,13 @@ pub fn backup(
         let result = (|| -> Result<()> {
             drives::ensure_target_mounted(&destination, target)?;
             validate_drive(&destination)?;
-            backup_inner(&destination, label.clone(), scheduled, &scan.swap_volumes)
+            backup_inner(
+                &destination,
+                label.clone(),
+                scheduled,
+                &scan.swap_volumes,
+                &mut progress,
+            )
         })();
         match result {
             Ok(()) => completed.push(target.label.clone()),
@@ -827,7 +872,11 @@ pub fn backup(
             completed.join(", ")
         )
     });
-    if !skipped.is_empty() && !completed.is_empty() {
+    if !unmounted.is_empty() && !completed.is_empty() {
+        let skipped = unmounted
+            .into_iter()
+            .map(|target| target.label)
+            .collect::<Vec<_>>();
         status.message = Some(format!(
             "{} Skipped unmounted drives: {}.",
             status.message.unwrap_or_default(),
@@ -841,6 +890,7 @@ fn backup_inner(
     label: Option<String>,
     scheduled: bool,
     swap_volumes: &BTreeSet<String>,
+    progress: &mut BackupProgress,
 ) -> Result<()> {
     cleanup_interrupted(c)?;
     let now = Utc::now();
@@ -937,6 +987,7 @@ fn backup_inner(
             )?;
         }
         local_snapshots.push((source.name.clone(), snapshot));
+        progress.step_completed();
     }
     // Every subvolume is now frozen before transfer; applications should quiesce databases for application consistency.
     let mut all_incremental = previous.is_some();
@@ -968,6 +1019,7 @@ fn backup_inner(
             all_incremental = false;
         }
         send_receive(snapshot, parent, &incoming.join(name))?;
+        progress.step_completed();
     }
     write_progress("Saving boot files and completing the restore point");
     fs::create_dir_all(incoming.join("boot"))?;
@@ -1019,6 +1071,7 @@ fn backup_inner(
     cleanup_legacy_anchors(c, previous.as_ref())?;
     write_progress("Applying 24 hourly, 7 daily, 4 weekly retention");
     prune(c)?;
+    progress.step_completed();
     Ok(())
 }
 

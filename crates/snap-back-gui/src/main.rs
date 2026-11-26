@@ -61,6 +61,7 @@ struct Status {
     points: Vec<RestorePoint>,
     busy: bool,
     progress: Option<String>,
+    backup_progress: Option<BackupProgress>,
     last_error: Option<String>,
     skipped_subvolumes: Vec<String>,
     schedule_enabled: bool,
@@ -68,6 +69,11 @@ struct Status {
     recovery_pending: Option<String>,
     backup_targets: Vec<String>,
     backup_drives: Vec<BackupDrive>,
+}
+#[derive(Debug, Clone, Deserialize)]
+struct BackupProgress {
+    completed: usize,
+    total: usize,
 }
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
@@ -241,7 +247,12 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let polling = iced::time::every(Duration::from_secs(5)).map(|_| Message::Tick);
+        let interval = if self.backup_fraction().is_some() {
+            1
+        } else {
+            5
+        };
+        let polling = iced::time::every(Duration::from_secs(interval)).map(|_| Message::Tick);
         let frames = if self.motion.needs_frames() {
             iced::time::every(Duration::from_millis(16)).map(Message::AnimationFrame)
         } else {
@@ -255,8 +266,8 @@ impl App {
             return Task::none();
         }
         self.busy = Some(label.into());
-        self.motion.set_active(true);
         self.operation_command = args.first().cloned();
+        self.sync_motion();
         self.notice = None;
         Task::perform(backend(args), |result| {
             Message::OperationDone(result.map(|json| {
@@ -270,6 +281,22 @@ impl App {
 
     fn is_busy(&self) -> bool {
         self.busy.is_some() || self.status.as_ref().is_some_and(|s| s.busy)
+    }
+
+    fn backup_fraction(&self) -> Option<f32> {
+        if let Some(progress) = self
+            .status
+            .as_ref()
+            .and_then(|s| s.backup_progress.as_ref())
+        {
+            return Some(progress.completed as f32 / progress.total.max(1) as f32);
+        }
+        (self.operation_command.as_deref() == Some("backup")).then_some(0.0)
+    }
+
+    fn sync_motion(&mut self) {
+        self.motion
+            .set_activity(self.is_busy(), self.backup_fraction());
     }
 
     fn reset_browser(&mut self) {
@@ -409,7 +436,7 @@ impl App {
                             self.point = next_point;
                         }
                         self.status = Some(status);
-                        self.motion.set_active(self.is_busy());
+                        self.sync_motion();
                         if changed
                             && self.page == Page::Restore
                             && self.point.is_some()
@@ -475,7 +502,7 @@ impl App {
                     self.destination.clear();
                 }
                 self.operation_command = None;
-                self.motion.set_active(self.is_busy());
+                self.sync_motion();
                 self.notice = Some(match result {
                     Ok(msg) => (false, msg),
                     Err(error) => (true, error),
@@ -783,7 +810,7 @@ impl App {
                         }
                     }
                 }
-                self.motion.set_active(self.is_busy());
+                self.sync_motion();
                 self.fetching = true;
                 return Task::batch([
                     status_task(),
@@ -796,7 +823,7 @@ impl App {
                 ]);
             }
         }
-        self.motion.set_active(self.is_busy());
+        self.sync_motion();
         Task::none()
     }
 
