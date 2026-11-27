@@ -15,6 +15,7 @@ use std::{
 
 pub mod drives;
 pub mod recovery;
+pub mod replacement;
 pub mod setup;
 mod swap;
 pub const CONFIG: &str = "/etc/snap-back/config.json";
@@ -321,11 +322,15 @@ fn validate_drive(c: &Config) -> Result<()> {
     Ok(())
 }
 pub fn points(c: &Config) -> Result<Vec<Point>> {
+    points_on(&c.destination)
+}
+
+fn points_on(destination: &Path) -> Result<Vec<Point>> {
     let mut points = Vec::new();
-    if !c.destination.join("points").exists() {
+    if !destination.join("points").exists() {
         return Ok(points);
     }
-    for e in fs::read_dir(c.destination.join("points"))? {
+    for e in fs::read_dir(destination.join("points"))? {
         let e = e?;
         if e.file_name().to_string_lossy().starts_with('.') {
             continue;
@@ -1372,7 +1377,7 @@ pub fn prepare_recovery(id: &str) -> Result<String> {
             subvol: s.subvol.clone(),
         })
         .collect::<Vec<_>>();
-    let message = recovery::prepare(&c.destination, id, &c.source_uuid, &sources)?;
+    let message = recovery::prepare(&c.destination, id, &c.source_uuid, &sources, None)?;
     fs::create_dir_all(STATE)?;
     fs::write(format!("{STATE}/recovery-point"), id)?;
     Ok(message)

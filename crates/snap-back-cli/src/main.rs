@@ -63,6 +63,19 @@ enum Commands {
     PrepareRecovery {
         point: String,
     },
+    /// List restore points on a mounted Snap Back drive, including on a fresh install.
+    ReplacementPoints {
+        #[arg(long)]
+        backup_mount: PathBuf,
+    },
+    /// Stage a replacement of this CachyOS install and retain its rollback volumes.
+    PrepareReplacement {
+        point: String,
+        #[arg(long)]
+        backup_mount: PathBuf,
+        #[arg(long)]
+        confirm: String,
+    },
     CancelRecovery,
     RecoverOffline {
         #[arg(long, default_value = "/etc/snap-back-recovery.json")]
@@ -113,6 +126,17 @@ fn run() -> Result<()> {
             to,
         } => message(core::restore_file(&point, &source, &path, &to)?),
         Commands::PrepareRecovery { point } => message(core::prepare_recovery(&point)?),
+        Commands::ReplacementPoints { backup_mount } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&core::replacement::points(&backup_mount)?)?
+            )
+        }
+        Commands::PrepareReplacement {
+            point,
+            backup_mount,
+            confirm,
+        } => message(core::replacement::prepare(&backup_mount, &point, &confirm)?),
         Commands::CancelRecovery => {
             message(core::cancel_recovery()?);
         }

@@ -26,6 +26,13 @@ pub struct RecoverySource {
     pub subvol: String,
 }
 
+pub(crate) struct Replacement {
+    pub fstab: String,
+    pub limine: String,
+    pub old_root_uuid: String,
+    pub config: crate::Config,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct RecoveryPlan {
     version: u32,
@@ -203,11 +210,12 @@ pub fn pending() -> Option<String> {
 
 /// Stage copies on the system filesystem and make recovery the next Limine boot.
 /// This does not reboot. The caller must hold the application's mutation lock.
-pub fn prepare(
+pub(crate) fn prepare(
     destination: &Path,
     point_id: &str,
     source_uuid: &str,
     sources: &[RecoverySource],
+    replacement: Option<Replacement>,
 ) -> Result<String> {
     root()?;
     component(point_id)?;
@@ -236,6 +244,13 @@ pub fn prepare(
             .join(point_id)
             .join(&source.name)
             .join("snapshot");
+        if replacement.is_some() {
+            ensure!(
+                fs::canonicalize(&snapshot)? == snapshot,
+                "Unexpected path to backup subvolume {}",
+                source.name
+            );
+        }
         ensure!(
             snapshot.is_dir(),
             "Missing backed up subvolume {}",
@@ -290,6 +305,18 @@ pub fn prepare(
         );
         fs::create_dir_all(staging.join("next"))?;
         fs::create_dir_all(staging.join("before"))?;
+        // Check the entire destination layout before arming the boot entry.
+        // The offline switch expects an existing volume at every target path.
+        if replacement.is_some() {
+            for source in &plan.sources {
+                let target = Path::new(ONLINE_TOP).join(subvol_path(&source.subvol)?);
+                ensure!(
+                    fs::canonicalize(&target)? == target && crate::is_subvolume(&target),
+                    "Expected destination subvolume {}",
+                    source.subvol
+                );
+            }
+        }
         for source in &plan.sources {
             let incoming = staging.join("received").join(&source.name);
             receive(
@@ -311,6 +338,57 @@ pub fn prepare(
             true,
         )?;
         copy_boot(&boot_source, &Path::new(CONTROL).join("boot-payload"), true)?;
+        if let Some(replacement) = replacement {
+            let restored_root = staging.join("next/root");
+            for relative in ["etc", "etc/snap-back"] {
+                let dir = restored_root.join(relative);
+                ensure!(
+                    fs::canonicalize(&dir)? == dir && dir.is_dir(),
+                    "Unexpected directory in restored system: {relative}"
+                );
+            }
+            let fstab = restored_root.join("etc/fstab");
+            ensure!(
+                fs::symlink_metadata(&fstab)?.is_file(),
+                "Backup fstab is not a regular file"
+            );
+            fs::write(fstab, replacement.fstab)?;
+            let config = restored_root.join("etc/snap-back/config.json");
+            ensure!(
+                fs::symlink_metadata(&config)?.is_file(),
+                "Backup configuration is not a regular file"
+            );
+            fs::write(config, serde_json::to_vec_pretty(&replacement.config)?)?;
+            // Keep future Limine entries pointed at the replacement disk too.
+            for relative in ["etc/default/limine", "etc/kernel/cmdline"] {
+                let path = restored_root.join(relative);
+                if path.exists() {
+                    ensure!(
+                        fs::canonicalize(&path)? == path && path.is_file(),
+                        "Unexpected kernel settings path: {relative}"
+                    );
+                    let old = format!("UUID={}", replacement.old_root_uuid);
+                    let new = format!("UUID={}", replacement.config.source_uuid);
+                    let settings = fs::read_to_string(&path)?.replace(&old, &new);
+                    fs::write(path, settings)?;
+                }
+            }
+            // Preserve the bootloader installed on the destination ESP and use
+            // the backed-up kernel paths with an updated root command line.
+            let payload = Path::new(CONTROL).join("boot-payload");
+            let efi = payload.join("EFI");
+            ensure!(
+                !efi.exists() || fs::symlink_metadata(&efi)?.is_dir(),
+                "Unexpected backup EFI directory"
+            );
+            copy_boot(&Path::new(BOOT).join("EFI"), &efi, true)?;
+            let limine = payload.join("limine.conf");
+            ensure!(
+                fs::symlink_metadata(&limine)?.is_file(),
+                "Backup Limine configuration is not a regular file"
+            );
+            fs::write(limine, replacement.limine)?;
+        }
         fs::copy(
             Path::new("/usr/lib/modules").join(&version).join("vmlinuz"),
             Path::new(CONTROL).join("vmlinuz"),

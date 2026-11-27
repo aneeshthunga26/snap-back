@@ -77,7 +77,20 @@ Snap Back currently targets **CachyOS on x86_64**, with:
 - Snapper, systemd, and a desktop PolicyKit authentication agent.
 - Limine, mkinitcpio, root subvolume `@`, and an EFI partition mounted at `/boot` for full system recovery.
 
-File backups do not replace a bootable installer. Recovery to a completely blank replacement system disk is not implemented. The drive setup screen does not add encryption.
+File backups do not replace a bootable installer. For a fresh CachyOS installation on a replacement disk, use the CLI recovery flow below. The drive setup screen does not add encryption.
+
+### Replace a fresh CachyOS installation
+
+Install CachyOS and Snap Back on the destination first. Use Limine, a FAT EFI partition mounted at `/boot`, and the same plain Btrfs subvolume layout as the backup, including `@` and `@home`. The first version expects a destination fstab with those Btrfs mounts and `/boot` identified by filesystem UUID. Remove any extra destination mounts from the recovery layout before preparing it.
+
+Mount the backup drive at its top-level Btrfs subvolume. List the existing restore points and select an ID. There is no need to register the backup drive in Snap Back first.
+
+```sh
+snap-back replacement-points --backup-mount /mnt/snap-back
+sudo snap-back prepare-replacement POINT_ID --backup-mount /mnt/snap-back --confirm REPLACE
+```
+
+After preparation succeeds, restart to apply the replacement. The destination installation is kept in rollback subvolumes. Snap Back uses the destination's filesystem table and EFI bootloader, restores the backed-up kernels and initramfs, and gives Limine the destination's root UUID. Use `sudo snap-back cancel-recovery` before rebooting if you decide to keep the fresh install.
 
 Snapshots are taken one subvolume at a time. Pause databases or other transactional workloads when you need an application-consistent checkpoint. Retained pre-restore volumes consume space and are not removed automatically.
 
